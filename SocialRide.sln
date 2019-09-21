@@ -1,0 +1,17 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SocialRide", "SocialRide\SocialRide.csproj", "{847900A9-C1A5-43B5-ADFF-809BB86AD650}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{847900A9-C1A5-43B5-ADFF-809BB86AD650}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{847900A9-C1A5-43B5-ADFF-809BB86AD650}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{847900A9-C1A5-43B5-ADFF-809BB86AD650}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{847900A9-C1A5-43B5-ADFF-809BB86AD650}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
