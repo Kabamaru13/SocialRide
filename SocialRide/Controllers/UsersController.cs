@@ -37,10 +37,10 @@ namespace SocialRide.Controllers
         /// Authenticate the specified user.
         /// </summary>
         /// <returns>The authenticated user</returns>
-        /// <param name="userDto">User dto - username, password</param>
+        /// <param name="UserAuthDto">User - username, password</param>
         [AllowAnonymous]
         [HttpPost("authenticate")]
-        public IActionResult Authenticate([FromBody]UserDto userDto)
+        public IActionResult Authenticate([FromBody]UserAuthDto userDto)
         {
             var user = _userService.Authenticate(userDto.Username, userDto.Password);
 

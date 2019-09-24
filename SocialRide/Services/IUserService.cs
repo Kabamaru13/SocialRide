@@ -196,21 +196,5 @@ namespace SocialRide.Services
 
             return true;
         }
-
-
-
-        private int getXPForLevel(int lvl)
-        {
-            int baseXP = 100;
-            int ret = 0;
-
-            for (int i = 1; i < lvl; i++)
-            {
-                ret += baseXP;
-                baseXP += 50;
-            }
-
-            return ret;
-        }
     }
 }
