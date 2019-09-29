@@ -91,6 +91,8 @@ namespace SocialRide
             services.AddAuthorization(options =>
             {
                 options.AddPolicy("AdminOnly", policy => policy.RequireClaim("AdminBadge"));
+                options.AddPolicy("Refresh", policy => policy.RequireClaim("RefreshBadge"));
+                options.AddPolicy("DriverOnly", policy => policy.RequireClaim("DriverBadge"));
             });
 
             // configure DI for application services

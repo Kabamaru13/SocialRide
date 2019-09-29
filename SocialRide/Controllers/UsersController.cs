@@ -34,22 +34,31 @@ namespace SocialRide.Controllers
         }
 
         /// <summary>
-        /// Authenticate the specified user.
+        /// Facebook or Google Login. Non-existed users will be registered first, existed users will just login.
         /// </summary>
-        /// <returns>The authenticated user</returns>
-        /// <param name="UserAuthDto">User - username, password</param>
+        /// <returns>The user's access token and refresh token</returns>
+        /// <param name="userDto">User - Id, Firstname, Lastname, Email, Prefix, Phone, Avatar</param>
         [AllowAnonymous]
         [HttpPost("authenticate")]
-        public IActionResult Authenticate([FromBody]UserAuthDto userDto)
+        public IActionResult Authenticate([FromBody]UserDto userDto)
         {
-            var user = _userService.Authenticate(userDto.Username, userDto.Password);
+            // map dto to entity
+            var user = _mapper.Map<User>(userDto);
 
-            if (user == null)
+            try
+            {
+                // save 
+                user = _userService.Create(user);
+            }
+            catch (Exception ex)
+            {
+                // return error message if there was an exception
                 return BadRequest(new ResultData()
                 {
                     data = new { },
-                    error = new Error() { errorCode = (int)ErrorCode.InvalidAuthentication, message = "Username or password is incorrect" }
+                    error = new Error() { errorCode = (int)ErrorCode.RegistrationGeneric, message = ex.Message }
                 });
+            }
 
             try
             {
@@ -59,27 +68,37 @@ namespace SocialRide.Controllers
                 {
                     Subject = new ClaimsIdentity(new Claim[]
                     {
-                        new Claim(ClaimTypes.Name, user.Id),
-                        user.Username == "Kabamaru" ? new Claim("AdminBadge", "") : null
+                        new Claim(ClaimTypes.Name, user.Id)
+                        //user.Username == "Kabamaru" ? new Claim("AdminBadge", "") : null
                     }),
-                    Expires = DateTime.UtcNow.AddDays(1),
+                    Expires = DateTime.UtcNow.AddHours(1),
                     SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
                 };
 
-                SecurityToken token = tokenHandler.CreateToken(tokenDescriptor);
+                var refreshDescriptor = new SecurityTokenDescriptor
+                {
+                    Subject = new ClaimsIdentity(new Claim[]
+                    {
+                        new Claim(ClaimTypes.Name, user.Id),
+                        new Claim("RefreshBadge", user.Id)
+                    }),
+                    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                };
 
-                var tokenString = tokenHandler.WriteToken(token);
+                SecurityToken accessToken = tokenHandler.CreateToken(tokenDescriptor);
+                SecurityToken refreshToken = tokenHandler.CreateToken(refreshDescriptor);
 
-                // return basic user info (without password) and token to store client side
+                var tokenString = tokenHandler.WriteToken(accessToken);
+                var refreshString = tokenHandler.WriteToken(refreshToken);
+
                 return Ok(new ResultData()
                 {
                     data = new
                     {
-                        Id = user.Id,
-                        Username = user.Username,
-                        FirstName = user.FirstName,
-                        LastName = user.LastName,
-                        Token = tokenString
+                        access_token = tokenString,
+                        token_type = "bearer",
+                        expires_in = "3600",
+                        refresh_token = refreshString
                     },
                     error = new Error() { errorCode = (int)ErrorCode.NoError, message = "" }
                 });
@@ -95,85 +114,54 @@ namespace SocialRide.Controllers
         }
 
         /// <summary>
-        /// Checks the username availability
+        /// Refresh your bearer token
         /// </summary>
-        /// <returns>Success if username is available</returns>
-        /// <param name="username">The username to check</param>
-        [AllowAnonymous]
-        [HttpGet]
-        [Route("availability")]
-        public IActionResult IsAvailable(string username)
+        /// <returns></returns>
+        [Authorize(Policy = "Refresh")]
+        [HttpPost("refresh")]
+        public IActionResult RefreshAuthentication()
         {
-            try
-            {
-                if (_userService.IsAvailable(username))
-                {
-                    return Ok(new ResultData()
-                    {
-                        data = new { },
-                        error = new Error() { errorCode = (int)ErrorCode.NoError, message = "" }
-                    });
-                }
-                else
-                {
-                    return BadRequest(new ResultData()
-                    {
-                        data = new { },
-                        error = new Error() { errorCode = (int)ErrorCode.UsernameAvailability, message = "Username '" + username + "' already exists." }
-                    });
-                }
-
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new ResultData()
-                {
-                    data = new { },
-                    error = new Error() { errorCode = (int)ErrorCode.UsernameAvailability, message = ex.Message }
-                });
-            }
-        }
-
-        /// <summary>
-        /// Register the specified user
-        /// </summary>
-        /// <returns>The registered user</returns>
-        /// <param name="userDto">User dto</param>
-        [AllowAnonymous]
-        [HttpPost("register")]
-        public IActionResult Register([FromBody]UserDto userDto)
-        {
-            // map dto to entity
-            var user = _mapper.Map<User>(userDto);
+            string userId = User.Identity.Name;
+            var user = _userService.GetById(userId);
 
             try
             {
-                // save 
-                var newUser = _userService.Create(user, userDto.Password);
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var key = Encoding.ASCII.GetBytes(_appSettings.Secret);
+                var tokenDescriptor = new SecurityTokenDescriptor
+                {
+                    Subject = new ClaimsIdentity(new Claim[]
+                    {
+                        new Claim(ClaimTypes.Name, user.Id)
+                    }),
+                    Expires = DateTime.UtcNow.AddHours(1),
+                    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                };
+
+                SecurityToken accessToken = tokenHandler.CreateToken(tokenDescriptor);
+
+                var tokenString = tokenHandler.WriteToken(accessToken);
+
                 return Ok(new ResultData()
                 {
-                    data = newUser,
-                    error = new Error() { errorCode = 0, message = "" }
+                    data = new
+                    {
+                        access_token = tokenString,
+                        token_type = "bearer",
+                        expires_in = "3600"
+                    },
+                    error = new Error() { errorCode = (int)ErrorCode.NoError, message = "" }
                 });
             }
             catch (Exception ex)
             {
-                if (ex.Message.Contains("is already registered. Authentication needed."))
-                {
-                    return Ok(new ResultData()
-                    {
-                        data = new { },
-                        error = new Error() { errorCode = (int)ErrorCode.RegistrationBypass, message = ex.Message }
-                    });
-                }
-
-                // return error message if there was an exception
                 return BadRequest(new ResultData()
                 {
                     data = new { },
-                    error = new Error() { errorCode = (int)ErrorCode.RegistrationGeneric, message = ex.Message }
+                    error = new Error() { errorCode = (int)ErrorCode.AuthenticationGeneric, message = ex.Message }
                 });
             }
+
         }
 
         /// <summary>
@@ -187,10 +175,9 @@ namespace SocialRide.Controllers
             try
             {
                 var users = _userService.GetAll();
-                var userDtos = _mapper.Map<IList<UserDto>>(users);
                 return Ok(new ResultData()
                 {
-                    data = userDtos,
+                    data = users,
                     error = new Error() { errorCode = (int)ErrorCode.NoError, message = "" }
                 });
             }
@@ -215,10 +202,9 @@ namespace SocialRide.Controllers
             try
             {
                 var user = _userService.GetById(id);
-                var userDto = _mapper.Map<UserDto>(user);
                 return Ok(new ResultData()
                 {
-                    data = userDto,
+                    data = user,
                     error = new Error() { errorCode = (int)ErrorCode.NoError, message = "" }
                 });
             }
@@ -234,16 +220,12 @@ namespace SocialRide.Controllers
 
         [Authorize(Policy = "AdminOnly")]
         [HttpPut("{id}")]
-        public IActionResult Update(string id, [FromBody]UserDto userDto)
+        public IActionResult Update([FromBody]User user)
         {
-            // map dto to entity and set id
-            var user = _mapper.Map<User>(userDto);
-            user.Id = id;
-
             try
             {
                 // save 
-                var updated = _userService.Update(user, userDto.Password);
+                var updated = _userService.Update(user);
                 return Ok(new ResultData()
                 {
                     data = updated,
